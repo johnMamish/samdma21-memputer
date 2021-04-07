@@ -1,0 +1,1 @@
+This project is a template for setting up Atmel SAMxxx projects using a standalone atmel ASF XDK.
