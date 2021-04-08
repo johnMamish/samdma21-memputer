@@ -202,20 +202,48 @@ void build_lut8_add(uint8_t* base)
  *
  * descs is the target location where the 128 Bytes(?) worth of DMA descriptors will be dumped.
  */
-void build_add8_using_nybbles(struct dma_descriptor_config* descs,
+void build_add8_using_nybbles(DmacDescriptor* descs,
                               uint8_t* opa,
                               uint8_t* opb,
                               uint8_t* result)
 {
+    // default
+    const uint16_t default_btctrl = ((0 << 13) |  // addr increment long step size: don't care
+                                     (0 << 12) |  // src/dest select for addr inc step: don't care
+                                     (0 << 11) |  // dest increment: disable
+                                     (0 << 10) |  // src  increment: disable
+                                     (0 <<  8) |  // beat size: byte
+                                     (0 <<  3) |  // action on block xfer complete: none
+                                     (0 <<  1) |  // no event on xfer complt
+                                     (1 <<  0));  // descriptor valid
+
+    static uint8_t scratch[4];
+
     ////////////////////////////////////////
     // do a single 4-bit add, storing the result in byte nibs_result[0] and carry_result
     // need to perform an index low_nybble_to_low_nybble[*opa] --> 'nibs_a'
-
+    descs[0].BTCTRL = default_btctrl;
+    descs[0].BTCNT  = 1;
+    descs[0].SRCADDR = *opa;          // <<< watch out for this one... need another xfer to set ths up.
+    //descs[0].DSTADDR = &nibs_a;
+    descs[0].DSTADDR = &descs[2].SRCADDR;
+    descs[0].DESCADDR = &descs[1];
 
     // need to perform an index low_nybble_to_low_nybble[*opb] --> 'nibs_b'
-
+    descs[1].BTCTRL = default_btctrl;
+    descs[1].BTCNT  = 1;
+    descs[1].SRCADDR = *opb;          // <<< need another xfer to set this one up.
+    descs[1].DSTADDR = &descs[2].SRCADDR + 1;
+    descs[1].DESCADDR = &descs[2];
 
     // need to perform an index low_nybble_low_nybble_to_byte[nibs_a][nibs_b] --> nibs_a_b.
+    // SRCADDR field is filled out by previous xfers. Assumes that low_nybble_low_nybble_to_byte is
+    // located on a 64k boundary.
+    descs[2].BTCTRL = default_btctrl;
+    descs[2].BTCNT  = 2;
+    //descs[2].SRCADDR = ();
+    descs[2].DSTADDR = &scratch[2];
+    descs[2].DESCADDR = &descs[2];
 
 
     // need to perform an index nybble_add_no_carryin[nibs_a_b] --> nibs_result[0]
@@ -243,7 +271,7 @@ void build_add8_using_nybbles(struct dma_descriptor_config* descs,
 
     ////////////////////////////////////////
     // combine nibs_result[0] and nibs_result[1].
-    // low_nybble_low_nybble_to_byte[nibs_result[1]][nibs_result[0]]
+    // low_nybble_low_nybble_to_byte[nibs_result[1]][nibs_result[0]] --> *result
 
 
 }
